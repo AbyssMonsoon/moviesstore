@@ -12,13 +12,9 @@ def index(request):
     if search_term:
         movies = Movie.objects.filter(name__icontains=search_term)
     else:
-        # Try to exclude movies that have an amount_left explicitly set to 0.
-        # If the column doesn't exist yet (no migration applied) fall back
-        # to returning all movies to avoid a 500 error.
-        try:
-            movies = Movie.objects.exclude(amount_left=0)
-        except (OperationalError, FieldError):
-            movies = Movie.objects.all()
+        # Show all movies (including out-of-stock). The admin controls
+        # whether `amount_left` can be edited when it's 0.
+        movies = Movie.objects.all()
     template_data = {}
     template_data['title'] = 'Movies'
     template_data['movies'] = movies
