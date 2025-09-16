@@ -1,6 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import Movie, Review
 from django.contrib.auth.decorators import login_required
+from django.db.utils import OperationalError
+from django.core.exceptions import FieldError
 
 # Create your views here.
 
@@ -10,7 +12,13 @@ def index(request):
     if search_term:
         movies = Movie.objects.filter(name__icontains=search_term)
     else:
-        movies = Movie.objects.all()
+        # Try to exclude movies that have an amount_left explicitly set to 0.
+        # If the column doesn't exist yet (no migration applied) fall back
+        # to returning all movies to avoid a 500 error.
+        try:
+            movies = Movie.objects.exclude(amount_left=0)
+        except (OperationalError, FieldError):
+            movies = Movie.objects.all()
     template_data = {}
     template_data['title'] = 'Movies'
     template_data['movies'] = movies

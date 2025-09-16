@@ -25,7 +25,22 @@ def index(request):
 def add(request, id):
     get_object_or_404(Movie, id=id)
     cart = request.session.get('cart', {})
-    cart[id] = request.POST['quantity']
+    # enforce quantity does not exceed amount_left when set
+    qty = int(request.POST['quantity'])
+    movie = Movie.objects.get(id=id)
+    amount_left = getattr(movie, 'amount_left', None)
+    if amount_left is not None:
+        try:
+            amount_left = int(amount_left)
+        except Exception:
+            amount_left = None
+    if amount_left is not None:
+        if amount_left <= 0:
+            # can't add out of stock
+            return redirect('cart.index')
+        if qty > amount_left:
+            qty = amount_left
+    cart[id] = str(qty)
     request.session['cart'] = cart
     return redirect('cart.index')
 
@@ -50,8 +65,20 @@ def purchase(request):
         item.movie = movie
         item.price = movie.price
         item.order = order
-        item.quantity = cart[str(movie.id)]
+        item.quantity = int(cart[str(movie.id)])
         item.save()
+        # decrement stock if amount_left is set; use getattr to avoid errors
+        amount_left = getattr(movie, 'amount_left', None)
+        if amount_left is not None:
+            try:
+                new_amount = int(amount_left) - item.quantity
+            except Exception:
+                new_amount = None
+            if new_amount is not None:
+                if new_amount < 0:
+                    new_amount = 0
+                movie.amount_left = new_amount
+                movie.save()
     request.session['cart'] = {}
     template_data = {}
     template_data['title'] = 'Purchase confirmation'
